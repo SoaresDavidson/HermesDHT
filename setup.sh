@@ -42,29 +42,60 @@ else
   exit 1
 fi
 
-# 4. Executa a configuração do Prowlarr se a API Key já estiver presente no .env
-PROWLARR_API_KEY_VAL=$(grep "^PROWLARR_API_KEY=" .env | cut -d'=' -f2-)
+# 4. Sobe os containers
+echo ""
+echo "Subindo containers..."
+docker compose up -d
 
-if [ -n "$PROWLARR_API_KEY_VAL" ]; then
-  echo ""
-  echo "PROWLARR_API_KEY encontrada. Executando configuração do Prowlarr..."
-  if uv run configure_prowlarr.py; then
-    echo "Prowlarr e indexadores configurados com sucesso! ✅"
-  else
-    echo "Aviso: Ocorreu um erro ao rodar configure_prowlarr.py."
+# 5. Extrai a ApiKey do Prowlarr automaticamente (aguarda o config.xml ser gerado)
+PROWLARR_CONFIG="./prowlarr/config/config.xml"
+echo "Aguardando Prowlarr gerar o arquivo de configuração..."
+for i in $(seq 1 20); do
+  if [ -f "$PROWLARR_CONFIG" ] && grep -q "<ApiKey>" "$PROWLARR_CONFIG"; then
+    break
   fi
+  sleep 3
+done
+
+if [ ! -f "$PROWLARR_CONFIG" ] || ! grep -q "<ApiKey>" "$PROWLARR_CONFIG"; then
+  echo "Erro: Prowlarr não gerou o config.xml a tempo. Verifique os logs com: docker compose logs prowlarr"
+  exit 1
+fi
+
+PROWLARR_API_KEY_VAL=$(grep -oP '(?<=<ApiKey>)[^<]+' "$PROWLARR_CONFIG")
+
+if [ -z "$PROWLARR_API_KEY_VAL" ]; then
+  echo "Erro: Não foi possível extrair a ApiKey do Prowlarr."
+  exit 1
+fi
+
+# Atualiza o .env com a chave extraída (substitui se já existir, adiciona se não)
+if grep -q "^PROWLARR_API_KEY=" .env; then
+  sed -i "s/^PROWLARR_API_KEY=.*/PROWLARR_API_KEY=$PROWLARR_API_KEY_VAL/" .env
 else
-  echo ""
-  echo "Aviso: Prowlarr não pôde ser integrado ainda (PROWLARR_API_KEY vazia)."
-  echo "Para finalizar a integração:"
-  echo "  1. Inicie os containers: docker compose up -d"
-  echo "  2. Obtenha a ApiKey em './prowlarr/config/config.xml'"
-  echo "  3. Insira no seu arquivo .env como PROWLARR_API_KEY=sua_chave"
-  echo "  4. Execute este script de setup novamente (ou rode: uv run configure_prowlarr.py)"
+  echo "PROWLARR_API_KEY=$PROWLARR_API_KEY_VAL" >> .env
+fi
+echo "PROWLARR_API_KEY extraída e salva no .env. ✅"
+
+# 6. Configura o Prowlarr via API
+echo "Executando configuração do Prowlarr..."
+if uv run configure_prowlarr.py; then
+  echo "Prowlarr configurado com sucesso! ✅"
+else
+  echo "Aviso: Ocorreu um erro ao rodar configure_prowlarr.py."
+fi
+
+# 7. Builda a imagem Docker do servidor MCP
+echo ""
+echo "Buildando imagem Docker do servidor MCP..."
+if docker build -t mcp-prowlarr-qbit ./mcp_server/; then
+  echo "Imagem mcp-prowlarr-qbit buildada com sucesso! ✅"
+else
+  echo "Erro ao buildar a imagem MCP. Verifique o Dockerfile em mcp_server/."
+  exit 1
 fi
 
 echo ""
-echo "Setup processado!"
-echo "1. Credenciais do qBittorrent injetadas no .env e qBittorrent.conf."
-echo "2. Whitelist de sub-rede do Docker configurada no qBittorrent."
-echo "3. Caso não tenha subido os containers, inicie com: docker compose up -d"
+echo "Setup concluído!"
+echo "  qBittorrent: http://localhost:8080"
+echo "  Prowlarr:    http://localhost:9696"

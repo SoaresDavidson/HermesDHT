@@ -74,7 +74,27 @@ def main():
         print(f"Erro: Não foi possível conectar ao Prowlarr em {api_url}. Verifique se os containers estão rodando.")
         sys.exit(1)
 
-    # 2. Configura o Download Client (qBittorrent)
+    # 2. Desabilita autenticação para endereços locais (localhost + Docker 172.16.0.0/12)
+    print("Configurando autenticação do Prowlarr para dispensar login em redes locais...")
+    try:
+        resp = requests.get(f"{api_url}/api/v1/config/host", headers=headers, timeout=10)
+        resp.raise_for_status()
+        host_config = resp.json()
+
+        # "None" via API sinaliza ao Prowlarr que a escolha foi feita, fechando o wizard de primeiro uso.
+        # "DisabledForLocalAddresses" dispensa login para localhost e redes privadas (incl. Docker 172.16.0.0/12).
+        host_config["authenticationMethod"] = "None"
+        host_config["authenticationRequired"] = "DisabledForLocalAddresses"
+
+        resp = requests.put(f"{api_url}/api/v1/config/host", headers=headers, json=host_config, timeout=10)
+        if resp.status_code >= 400:
+            print(f"Erro detalhado da API Prowlarr: {resp.text}")
+        resp.raise_for_status()
+        print("Autenticação desabilitada para localhost e redes locais (incl. Docker 172.16.0.0/12). ✅")
+    except Exception as e:
+        print(f"Aviso: Não foi possível configurar autenticação: {str(e)}")
+
+    # 3. Configura o Download Client (qBittorrent)
     print("Configurando o download client (qBittorrent) no Prowlarr...")
     try:
         # Busca clients existentes
@@ -145,7 +165,7 @@ def main():
     except Exception as e:
         print(f"Erro ao configurar download client qBittorrent: {str(e)}")
 
-    # 3. Configura o Indexer (LinuxTracker)
+    # 4. Configura o Indexer (LinuxTracker)
     print("Configurando o indexador LinuxTracker no Prowlarr...")
     try:
         # Busca indexadores cadastrados
@@ -190,15 +210,24 @@ def main():
             if not indexer_schema:
                 raise RuntimeError("Não foi possível encontrar o schema do LinuxTracker no Prowlarr.")
 
+            # Busca o ID do primeiro perfil de app disponível (obrigatório pela API)
+            profiles_resp = requests.get(f"{api_url}/api/v1/appprofile", headers=headers, timeout=10)
+            profiles_resp.raise_for_status()
+            profiles = profiles_resp.json()
+            if not profiles:
+                raise RuntimeError("Nenhum perfil de app encontrado no Prowlarr.")
+            app_profile_id = profiles[0]["id"]
+
             indexer_schema["name"] = "LinuxTracker"
             indexer_schema["enable"] = True
             indexer_schema["priority"] = 25
+            indexer_schema["appProfileId"] = app_profile_id
             for field in indexer_schema["fields"]:
                 if field["name"] == "definitionFile":
                     field["value"] = "linuxtracker"
                 elif field["name"] == "baseUrl":
                     field["value"] = "https://linuxtracker.org/"
-                    
+
             resp = requests.post(f"{api_url}/api/v1/indexer", headers=headers, json=indexer_schema, timeout=10)
             
         resp.raise_for_status()
