@@ -22,7 +22,7 @@ O script faz tudo automaticamente: cria pastas, gera `.env`, configura qBittorre
 
 **Caminho de downloads** — editável no `.env`:
 ```env
-DOWNLOADS_PATH=/mnt/hd_externo/downloads
+DOWNLOADS_PATH=${sua_pasta_pessoal}/media-server/downloads
 ```
 
 ## Servidor MCP
