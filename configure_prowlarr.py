@@ -5,6 +5,7 @@
 # ]
 # ///
 
+import json
 import os
 import re
 import sys
@@ -94,20 +95,60 @@ def main():
     except Exception as e:
         print(f"Aviso: Não foi possível configurar autenticação: {str(e)}")
 
-    # 3. Configura o Download Client (qBittorrent)
+    # 3. Configura preferência por links magnet
+    print("Configurando Prowlarr para preferir links magnet...")
+    try:
+        resp = requests.get(f"{api_url}/api/v1/config/downloadclient", headers=headers, timeout=10)
+        resp.raise_for_status()
+        dl_config = resp.json()
+
+        dl_config["preferMagnetLinks"] = True
+
+        resp = requests.put(f"{api_url}/api/v1/config/downloadclient", headers=headers, json=dl_config, timeout=10)
+        if resp.status_code >= 400:
+            print(f"Erro detalhado da API Prowlarr: {resp.text}")
+        resp.raise_for_status()
+        print("Preferência por links magnet configurada com sucesso! ✅")
+    except Exception as e:
+        print(f"Aviso: Não foi possível configurar preferência por magnet: {str(e)}")
+
+    # 4. Configura o save path do qBittorrent via API
+    print("Configurando save path do qBittorrent para /data/downloads/...")
+    qbit_url = "http://localhost:8080"
+    try:
+        qbit_session = requests.Session()
+        if qbit_api_key:
+            qbit_session.headers.update({"Authorization": f"Bearer {qbit_api_key}"})
+        else:
+            login_resp = qbit_session.post(f"{qbit_url}/api/v2/auth/login", data={
+                "username": qbit_user,
+                "password": qbit_pass,
+            }, timeout=10)
+            login_resp.raise_for_status()
+
+        prefs_resp = qbit_session.post(f"{qbit_url}/api/v2/app/setPreferences", data={
+            "json": json.dumps({"save_path": "/data/downloads/"})
+        }, timeout=10)
+        prefs_resp.raise_for_status()
+        print("Save path do qBittorrent configurado para /data/downloads/ ✅")
+    except Exception as e:
+        print(f"Aviso: Não foi possível configurar o save path do qBittorrent: {str(e)}")
+
+    # 5. Configura o Download Client (qBittorrent) no Prowlarr
     print("Configurando o download client (qBittorrent) no Prowlarr...")
+    qbit_client_id = None
     try:
         # Busca clients existentes
         resp = requests.get(f"{api_url}/api/v1/downloadclient", headers=headers, timeout=10)
         resp.raise_for_status()
         clients = resp.json()
-        
+
         qbit_client = None
         for client in clients:
             if client.get("implementation") == "QBittorrent" or client.get("name") == "qBittorrent":
                 qbit_client = client
                 break
-                
+
         if qbit_client:
             # Atualiza existente: pegamos o objeto inteiro e alteramos apenas os campos necessários
             client_id = qbit_client["id"]
@@ -126,7 +167,7 @@ def main():
                     field["value"] = "" if qbit_api_key else qbit_pass
                 elif field["name"] == "category":
                     field["value"] = "prowlarr"
-            
+
             resp = requests.put(f"{api_url}/api/v1/downloadclient/{client_id}", headers=headers, json=qbit_client, timeout=10)
         else:
             # Cria novo: Busca o schema para obter todos os campos padrão obrigatórios
@@ -134,11 +175,11 @@ def main():
             schema_resp = requests.get(f"{api_url}/api/v1/downloadclient/schema", headers=headers, timeout=10)
             schema_resp.raise_for_status()
             schemas = schema_resp.json()
-            
+
             qbit_schema = next((s for s in schemas if s.get("implementation") == "QBittorrent"), None)
             if not qbit_schema:
                 raise RuntimeError("Não foi possível encontrar o esquema do qBittorrent no Prowlarr.")
-                
+
             qbit_schema["name"] = "qBittorrent"
             qbit_schema["enable"] = True
             for field in qbit_schema["fields"]:
@@ -154,18 +195,19 @@ def main():
                     field["value"] = "" if qbit_api_key else qbit_pass
                 elif field["name"] == "category":
                     field["value"] = "prowlarr"
-                    
+
             resp = requests.post(f"{api_url}/api/v1/downloadclient", headers=headers, json=qbit_schema, timeout=10)
-            
+
         if resp.status_code >= 400:
             print(f"Erro detalhado da API Prowlarr: {resp.text}")
         resp.raise_for_status()
-        print("qBittorrent configurado com sucesso no Prowlarr! ✅")
-        
+        qbit_client_id = resp.json().get("id")
+        print(f"qBittorrent configurado com sucesso no Prowlarr! (ID: {qbit_client_id}) ✅")
+
     except Exception as e:
         print(f"Erro ao configurar download client qBittorrent: {str(e)}")
 
-    # 4. Configura o Indexer (LinuxTracker)
+    # 6. Configura o Indexer (LinuxTracker)
     print("Configurando o indexador LinuxTracker no Prowlarr...")
     try:
         # Busca indexadores cadastrados
@@ -179,16 +221,21 @@ def main():
                 lt_indexer = ind
                 break
                 
-        if lt_indexer:
-            indexer_id = lt_indexer["id"]
-            print(f"LinuxTracker já configurado (ID: {indexer_id}). Atualizando dados...")
-            lt_indexer["enable"] = True
-            for field in lt_indexer["fields"]:
+        def apply_indexer_settings(obj):
+            obj["enable"] = True
+            obj["preferMagnetLinks"] = True
+            if qbit_client_id:
+                obj["downloadClientId"] = qbit_client_id
+            for field in obj["fields"]:
                 if field["name"] == "definitionFile":
                     field["value"] = "linuxtracker"
                 elif field["name"] == "baseUrl":
                     field["value"] = "https://linuxtracker.org/"
 
+        if lt_indexer:
+            indexer_id = lt_indexer["id"]
+            print(f"LinuxTracker já configurado (ID: {indexer_id}). Atualizando dados...")
+            apply_indexer_settings(lt_indexer)
             resp = requests.put(f"{api_url}/api/v1/indexer/{indexer_id}", headers=headers, json=lt_indexer, timeout=10)
         else:
             print("Adicionando novo indexador LinuxTracker com base no schema oficial...")
@@ -219,14 +266,9 @@ def main():
             app_profile_id = profiles[0]["id"]
 
             indexer_schema["name"] = "LinuxTracker"
-            indexer_schema["enable"] = True
             indexer_schema["priority"] = 25
             indexer_schema["appProfileId"] = app_profile_id
-            for field in indexer_schema["fields"]:
-                if field["name"] == "definitionFile":
-                    field["value"] = "linuxtracker"
-                elif field["name"] == "baseUrl":
-                    field["value"] = "https://linuxtracker.org/"
+            apply_indexer_settings(indexer_schema)
 
             resp = requests.post(f"{api_url}/api/v1/indexer", headers=headers, json=indexer_schema, timeout=10)
             
