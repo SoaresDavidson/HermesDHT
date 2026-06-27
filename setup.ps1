@@ -8,10 +8,7 @@ $MEDIA_ROOT_DOCKER = $MEDIA_ROOT.Replace("\", "/")
 # 1. Cria a estrutura de pastas do media server no host
 $paths = @(
     "$MEDIA_ROOT\downloads\torrents",
-    "$MEDIA_ROOT\downloads\incomplete",
-    "$MEDIA_ROOT\media\movies",
-    "$MEDIA_ROOT\media\tv",
-    "$MEDIA_ROOT\media\music"
+    "$MEDIA_ROOT\downloads\incomplete"
 )
 foreach ($path in $paths) {
     if (-not (Test-Path $path)) {
@@ -26,7 +23,6 @@ PUID=1000
 PGID=1000
 TZ=America/Sao_Paulo
 DOWNLOADS_PATH=$MEDIA_ROOT_DOCKER/downloads
-MEDIA_PATH=$MEDIA_ROOT_DOCKER/media
 LOG_LEVEL=info
 
 # Configurações do Servidor MCP (Prowlarr & qBittorrent)

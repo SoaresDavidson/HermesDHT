@@ -20,10 +20,9 @@ Stack Docker para busca e download de ISOs Linux via Prowlarr + qBittorrent, com
 
 O script faz tudo automaticamente: cria pastas, gera `.env`, configura qBittorrent, sobe os containers, extrai a ApiKey do Prowlarr e executa a configuração completa.
 
-**Caminhos de mídia** — editáveis no `.env` antes do passo 2:
+**Caminho de downloads** — editável no `.env`:
 ```env
 DOWNLOADS_PATH=/mnt/hd_externo/downloads
-MEDIA_PATH=/mnt/hd_externo/media
 ```
 
 ## Servidor MCP

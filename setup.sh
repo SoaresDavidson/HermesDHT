@@ -5,7 +5,7 @@ set -e
 MEDIA_ROOT="$HOME/media-server"
 
 # 1. Cria a estrutura de pastas do media server no host
-mkdir -p "$MEDIA_ROOT"/{downloads/{torrents,incomplete},media/{movies,tv,music}}
+mkdir -p "$MEDIA_ROOT"/downloads/{torrents,incomplete}
 
 # 2. Cria o arquivo .env se não existir
 if [ ! -f .env ]; then
@@ -14,7 +14,6 @@ PUID=$(id -u)
 PGID=$(id -g)
 TZ=America/Sao_Paulo
 DOWNLOADS_PATH=$MEDIA_ROOT/downloads
-MEDIA_PATH=$MEDIA_ROOT/media
 LOG_LEVEL=info
 
 # Configurações do Servidor MCP (Prowlarr & qBittorrent)
