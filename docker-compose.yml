@@ -1,25 +1,10 @@
 services:
-  # Radarr - Movies
-  radarr:
-    image: lscr.io/linuxserver/radarr:latest
-    container_name: radarr
-    environment:
-      - PUID=${PUID}
-      - PGID=${PGID}
-      - TZ=${TZ}
-    volumes:
-      - ./radarr/config:/config
-      - ${ROOT_MEDIA_PATH}:/data # Access to /data/downloads and /data/media/movies
-    ports:
-      - 7878:7878
-    restart: unless-stopped
-    networks:
-      - internal-proxy
-
-# Prowlarr - Indexer centralized management
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
@@ -27,55 +12,43 @@ services:
     volumes:
       - ./prowlarr/config:/config
     ports:
-      - 9696:9696
+      - 127.0.0.1:9696:9696
     restart: unless-stopped
     networks:
       - internal-proxy
 
-
-# FlareSolverr - Bypasses Cloudflare protection for Indexers
   flaresolverr:
     image: ghcr.io/flaresolverr/flaresolverr:latest
     container_name: flaresolverr
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - TZ=${TZ}
-    ports:
-      - 8191:8191
     restart: unless-stopped
     networks:
       - internal-proxy
+
   qbittorrent:
     image: lscr.io/linuxserver/qbittorrent:latest
     container_name: qbittorrent
-    environment:
-      - PUID=$(PUID)
-      - PGID=$(PGID)
-      - TZ=$(TZ)
-      # - WEBUI_PORT=8080
-      - TORRENTING_PORT=6881
-    volumes:
-      - /qbittorrent/appdata:/config
-      - ${ROOT_MEDIA_PATH}:/downloads #optional
-    ports:
-      - 8080:8080
-      - 6881:6881
-      - 6881:6881/udp
-    stop_grace_period: "10s" #optional
-    restart: unless-stopped
-  # Bazarr - Subtitles
-  bazarr:
-    image: lscr.io/linuxserver/bazarr:latest
-    container_name: bazarr
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
     environment:
       - PUID=${PUID}
       - PGID=${PGID}
       - TZ=${TZ}
+      - TORRENTING_PORT=6881
     volumes:
-      - ./bazarr/config:/config
-      - ${ROOT_MEDIA_PATH}:/data
+      - ./qbittorrent/config:/config
+      - ${DOWNLOADS_PATH}:/data/downloads
     ports:
-      - 6767:6767
+      - 127.0.0.1:8080:8080
+      - 6881:6881
+      - 6881:6881/udp
+    stop_grace_period: "10s"
     restart: unless-stopped
     networks:
       - internal-proxy

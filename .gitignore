@@ -1,2 +1,8 @@
 .vscode
 .env
+.venv
+bazarr
+prowlarr
+radarr
+sonarr
+qbittorrent
