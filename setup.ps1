@@ -71,52 +71,87 @@ Write-Host "qBittorrent configurado com sucesso."
 Write-Host "Senha gerada e salva: $password"
 Write-Host "API Key gerada e salva: $apiKey"
 
-# 5. Executa a configuração do Prowlarr se a API Key já estiver presente no .env
-$prowlarrApiKey = ""
-if (Test-Path .env) {
-    $envLines = Get-Content .env
-    foreach ($envLine in $envLines) {
-        if ($envLine -match "^PROWLARR_API_KEY=(.+)$") {
-            $prowlarrApiKey = $Matches[1].Trim()
+# 5. Sobe os containers
+Write-Host ""
+Write-Host "Subindo containers..."
+& docker compose up -d
+
+# 6. Extrai a ApiKey do Prowlarr automaticamente (aguarda o config.xml ser gerado)
+$prowlarrConfig = "./prowlarr/config/config.xml"
+Write-Host "Aguardando Prowlarr gerar o arquivo de configuração..."
+$found = $false
+$prowlarrApiKeyVal = ""
+
+for ($i = 1; $i -le 20; $i++) {
+    if (Test-Path $prowlarrConfig) {
+        $content = Get-Content $prowlarrConfig -Raw
+        if ($content -match "<ApiKey>([^<]+)</ApiKey>") {
+            $found = $true
+            $prowlarrApiKeyVal = $Matches[1].Trim()
+            break
         }
     }
+    Start-Sleep -Seconds 3
 }
 
-if ($prowlarrApiKey -ne "") {
-    Write-Host ""
-    Write-Host "PROWLARR_API_KEY encontrada. Executando configuração do Prowlarr..."
-    
-    $hasUv = $false
-    try {
-        & uv --version | Out-Null
-        $hasUv = $true
-    } catch {}
+if (-not $found) {
+    Write-Error "Erro: Prowlarr não gerou o config.xml a tempo. Verifique os logs com: docker compose logs prowlarr"
+    exit 1
+}
 
-    if ($hasUv) {
-        & uv run configure_prowlarr.py
+# Atualiza o .env com a chave extraída
+$envPath = ".env"
+$envLines = Get-Content $envPath
+$updated = $false
+$newLines = @()
+foreach ($line in $envLines) {
+    if ($line -match "^PROWLARR_API_KEY=") {
+        $newLines += "PROWLARR_API_KEY=$prowlarrApiKeyVal"
+        $updated = $true
     } else {
-        Write-Host "Instalando dependências e executando com Python padrão..."
-        & $pythonCmd -m pip install requests | Out-Null
-        & $pythonCmd configure_prowlarr.py
+        $newLines += $line
     }
+}
+if (-not $updated) {
+    $newLines += "PROWLARR_API_KEY=$prowlarrApiKeyVal"
+}
+Set-Content -Path $envPath -Value $newLines -Encoding utf8
+Write-Host "PROWLARR_API_KEY extraída e salva no .env. ✅"
 
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "Prowlarr e indexadores configurados com sucesso! ✅"
-    } else {
-        Write-Host "Aviso: Ocorreu um erro ao rodar configure_prowlarr.py."
-    }
+# 7. Configura o Prowlarr via API
+Write-Host "Executando configuração do Prowlarr..."
+$hasUv = $false
+try {
+    & uv --version | Out-Null
+    $hasUv = $true
+} catch {}
+
+if ($hasUv) {
+    & uv run configure_prowlarr.py
 } else {
-    Write-Host ""
-    Write-Host "Aviso: Prowlarr não pôde ser integrado ainda (PROWLARR_API_KEY vazia)."
-    Write-Host "Para finalizar a integração:"
-    Write-Host "  1. Inicie os containers: docker compose up -d"
-    Write-Host "  2. Obtenha a ApiKey em './prowlarr/config/config.xml'"
-    Write-Host "  3. Insira no seu arquivo .env como PROWLARR_API_KEY=sua_chave"
-    Write-Host "  4. Execute este script de setup novamente (ou rode: uv run configure_prowlarr.py)"
+    Write-Host "Instalando dependências e executando com Python padrão..."
+    & $pythonCmd -m pip install requests | Out-Null
+    & $pythonCmd configure_prowlarr.py
+}
+
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Prowlarr configurado com sucesso! ✅"
+} else {
+    Write-Host "Aviso: Ocorreu um erro ao rodar configure_prowlarr.py."
+}
+
+# 8. Builda a imagem Docker do servidor MCP
+Write-Host ""
+Write-Host "Buildando imagem Docker do servidor MCP..."
+& docker build -t mcp-prowlarr-qbit ./mcp_server/
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "Imagem mcp-prowlarr-qbit buildada com sucesso! ✅"
+} else {
+    Write-Error "Erro ao buildar a imagem MCP. Verifique o Dockerfile em mcp_server/."
+    exit 1
 }
 
 Write-Host ""
-Write-Host "Setup processado!"
-Write-Host "1. Credenciais do qBittorrent injetadas no .env e qBittorrent.conf."
-Write-Host "2. Whitelist de sub-rede do Docker configurada no qBittorrent."
-Write-Host "3. Caso não tenha subido os containers, inicie com: docker compose up -d"
+Write-Host "Setup concluído!"
+Write-Host "  qBittorrent: http://localhost:8080"
+Write-Host "  Prowlarr:    http://localhost:9696"
