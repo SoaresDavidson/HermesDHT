@@ -19,11 +19,9 @@ logging.basicConfig(level=logging.INFO, stream=sys.stderr)
 logger = logging.getLogger("ProwlarrQbitMCP")
 
 # Inicializa o Servidor FastMCP
-mcp = FastMCP("ProwlarrQbit")
+mcp = FastMCP("HermesDHT")
 
 # Configurações obtidas das Variáveis de Ambiente (com fallbacks locais)
-PROWLARR_URL = os.environ.get("PROWLARR_URL", "http://localhost:9696").rstrip("/")
-PROWLARR_API_KEY = os.environ.get("PROWLARR_API_KEY", "3da31a823cf84de699f63292341889f0")
 QBITTORRENT_URL = os.environ.get("QBITTORRENT_URL", "http://localhost:8080").rstrip("/")
 QBITTORRENT_USER = os.environ.get("QBITTORRENT_USER", "admin")
 QBITTORRENT_PASS = os.environ.get("QBITTORRENT_PASS", "123456")  # Deve ser preenchido se houver senha ativa
@@ -78,113 +76,20 @@ class QbitClient:
 
 qbit = QbitClient(QBITTORRENT_URL, QBITTORRENT_USER, QBITTORRENT_PASS)
 
-def prowlarr_request(method: str, path: str, params: Optional[Dict[str, Any]] = None) -> Any:
-    headers = {"X-Api-Key": PROWLARR_API_KEY}
-    url = f"{PROWLARR_URL}{path}"
-    try:
-        resp = requests.request(method, url, headers=headers, params=params, timeout=15)
-        resp.raise_for_status()
-        return resp.json()
-    except Exception as e:
-        logger.error(f"Erro na requisição Prowlarr ({method} {path}): {str(e)}")
-        raise RuntimeError(f"Erro na API do Prowlarr: {str(e)}")
-
-@mcp.tool()
-def buscar_distro(query: str) -> str:
-    """
-    Busca torrents de distros Linux ou outros arquivos no Prowlarr através dos indexadores ativos.
-
-    Args:
-        query: O termo de busca (ex: 'ubuntu 24.04', 'debian netinst').
-    """
-    logger.info(f"Executando buscar_distro para query: {query}")
-    try:
-        results = prowlarr_request("GET", "/api/v1/search", {"query": query})
-        if not results:
-            return f"Nenhum resultado encontrado no Prowlarr para '{query}'."
-        
-        # Filtra os 15 principais resultados e formata como tabela Markdown
-        markdown = f"### Resultados de Busca no Prowlarr para '{query}':\n\n"
-        markdown += "| # | Título | Tamanho | Seeders | Peers | Indexador | Link (URL/Magnet) |\n"
-        markdown += "|---|--------|---------|---------|-------|-----------|--------------------|\n"
-        
-        for idx, item in enumerate(results[:15], start=1):
-            title = item.get("title", "N/A")
-            size_bytes = item.get("size", 0)
-            size_gb = size_bytes / (1024 ** 3)
-            seeders = item.get("seeders", 0)
-            peers = item.get("peers", 0)
-            indexer = item.get("indexer", "N/A")
-            magnet_url = item.get("magnetUrl", "") or item.get("downloadUrl", "") or item.get("guid", "")
-            
-            # Corta títulos muito longos para manter o layout da tabela legível
-            if len(title) > 60:
-                title = title[:57] + "..."
-                
-            markdown += f"| {idx} | {title} | {size_gb:.2f} GB | {seeders} | {peers} | {indexer} | `{magnet_url}` |\n"
-            
-        return markdown
-    except Exception as e:
-        return f"Erro ao realizar a busca no Prowlarr: {str(e)}"
-
-@mcp.tool()
-def listar_indexers() -> str:
-    """
-    Lista todos os indexadores cadastrados no Prowlarr e seus status de atividade.
-    """
-    logger.info("Executando listar_indexers")
-    try:
-        indexers = prowlarr_request("GET", "/api/v1/indexer")
-        if not indexers:
-            return "Nenhum indexador cadastrado no Prowlarr."
-        
-        markdown = "### Indexadores no Prowlarr:\n\n"
-        markdown += "| ID | Nome | Protocolo | Status |\n"
-        markdown += "|----|------|-----------|--------|\n"
-        
-        for ind in indexers:
-            idx_id = ind.get("id", "N/A")
-            name = ind.get("name", "N/A")
-            protocol = ind.get("protocol", "N/A")
-            enabled = "Ativo ✅" if ind.get("enable", False) else "Inativo ❌"
-            
-            markdown += f"| {idx_id} | {name} | {protocol} | {enabled} |\n"
-            
-        return markdown
-    except Exception as e:
-        return f"Erro ao listar indexadores do Prowlarr: {str(e)}"
-
 @mcp.tool()
 def baixar_iso(magnet: str) -> str:
     """
-    Adiciona um link magnet ou URL de torrent de uma ISO no qBittorrent para download.
+    Adiciona um link magnet ou URL de torrent no qBittorrent para download.
 
     Args:
         magnet: O link magnet completo ou URL direta do arquivo .torrent.
     """
     logger.info(f"Executando baixar_iso para: {magnet[:60]}...")
-    
-    # Corrige problemas de loopback no Docker:
-    # Se for uma URL HTTP/HTTPS de torrent vinda do Prowlarr local, o qBittorrent (rodando dentro de seu container)
-    # não conseguirá baixar de 'localhost:9696'. Precisamos reescrever para o nome do serviço interno do Docker ('http://prowlarr:9696').
-    resolved_magnet = magnet
-    if resolved_magnet.startswith("http"):
-        # 1. Tenta substituir com base na variável PROWLARR_URL configurada externamente
-        if PROWLARR_URL in resolved_magnet:
-            resolved_magnet = resolved_magnet.replace(PROWLARR_URL, "http://prowlarr:9696")
-        
-        # 2. Tenta substituição direta de localhost/127.0.0.1
-        for local_host in ["localhost:9696", "127.0.0.1:9696"]:
-            if local_host in resolved_magnet:
-                resolved_magnet = resolved_magnet.replace(local_host, "prowlarr:9696")
-                
-        logger.info(f"URL de download reescrita para rede interna: {resolved_magnet[:60]}...")
-
     try:
-        resp = qbit.request("POST", "/api/v2/torrents/add", data={"urls": resolved_magnet})
+        resp = qbit.request("POST", "/api/v2/torrents/add", data={"urls": magnet})
         # 200 = adicionado imediatamente; 202 = aceito como pendente (qBittorrent 5.x com URL de .torrent)
         if resp.status_code in (200, 202):
-            return "Sucesso: O download da ISO foi enviado e iniciado no qBittorrent!"
+            return "Sucesso: O download foi enviado e iniciado no qBittorrent!"
         else:
             return f"Erro ao enviar download para o qBittorrent: Código={resp.status_code}, Detalhe={resp.text}"
     except Exception as e:
@@ -273,6 +178,113 @@ def deletar_download(hash: str, deletar_dados: bool = False) -> str:
             return f"Erro ao excluir torrent `{hash}`: Código={resp.status_code}"
     except Exception as e:
         return f"Erro na operação de exclusão: {str(e)}"
+
+@mcp.tool()
+def buscar_datasets_hf(query: str, limit: int = 10) -> str:
+    """
+    Busca datasets no catálogo oficial do Hugging Face.
+
+    Args:
+        query: O termo de busca (ex: 'imdb', 'wikipedia').
+        limit: O número máximo de resultados (padrão 10).
+    """
+    logger.info(f"Executando buscar_datasets_hf para query: {query}")
+    try:
+        url = "https://huggingface.co/api/datasets"
+        params = {
+            "search": query,
+            "sort": "downloads",
+            "limit": limit
+        }
+        resp = requests.get(url, params=params, timeout=15)
+        resp.raise_for_status()
+        datasets = resp.json()
+        
+        if not datasets:
+            return f"Nenhum dataset encontrado no Hugging Face para '{query}'."
+            
+        markdown = f"### Datasets no Hugging Face para '{query}':\n\n"
+        markdown += "| # | ID | Downloads | Likes | Descrição |\n"
+        markdown += "|---|----|-----------|-------|-----------|\n"
+        
+        for idx, item in enumerate(datasets, start=1):
+            ds_id = item.get("id", "N/A")
+            downloads = item.get("downloads", 0)
+            likes = item.get("likes", 0)
+            description = item.get("description", "Sem descrição.")
+            
+            # Limpa e encurta a descrição
+            description = description.replace("\n", " ").replace("\t", " ").strip()
+            if len(description) > 80:
+                description = description[:77] + "..."
+                
+            markdown += f"| {idx} | `{ds_id}` | {downloads:,} | {likes:,} | {description} |\n"
+            
+        return markdown
+    except Exception as e:
+        return f"Erro ao realizar a busca no Hugging Face: {str(e)}"
+
+@mcp.tool()
+def baixar_torrent_hf(repo: str) -> str:
+    """
+    Obtém o arquivo .torrent de um dataset/modelo do Hugging Face usando hf-torrent
+    e o envia automaticamente para download no qBittorrent.
+
+    Args:
+        repo: O identificador do repositório (ex: 'gpt2', 'stanfordnlp/imdb').
+    """
+    logger.info(f"Executando baixar_torrent_hf para o repositório: {repo}")
+    try:
+        from hf_torrent.download import main as download_main
+        import os
+        
+        # Registra a lista de arquivos atual para detectar o novo .torrent gerado
+        before_files = set(os.listdir("."))
+        
+        logger.info("Iniciando download do arquivo .torrent via hf-torrent...")
+        # Baixa apenas o arquivo torrent no diretório atual
+        download_main(repo, "~/.cache/hf-torrent/downloads", "hf-torrent-models", get_torrent=True)
+        
+        after_files = set(os.listdir("."))
+        new_files = after_files - before_files
+        torrent_file = None
+        for f in new_files:
+            if f.endswith(".torrent"):
+                torrent_file = f
+                break
+                
+        # Fallback de busca caso o arquivo já existisse
+        if not torrent_file:
+            from hf_torrent.utils import convert_repo_name
+            prefix = convert_repo_name(repo)
+            for f in os.listdir("."):
+                if f.startswith(prefix) and f.endswith(".torrent"):
+                    torrent_file = f
+                    break
+                    
+        if not torrent_file:
+            return f"Erro: Não foi possível obter o arquivo .torrent para o repositório '{repo}'."
+            
+        logger.info(f"Arquivo torrent encontrado: {torrent_file}. Enviando para o qBittorrent...")
+        
+        # Faz o upload do arquivo torrent para a API do qBittorrent
+        with open(torrent_file, "rb") as f:
+            files = {"torrents": f}
+            resp = qbit.request("POST", "/api/v2/torrents/add", files=files)
+            
+        # Remove o arquivo temporário local
+        try:
+            os.remove(torrent_file)
+        except Exception:
+            pass
+            
+        if resp.status_code in (200, 202):
+            return f"Sucesso: O torrent do dataset/modelo `{repo}` foi enviado e iniciado no qBittorrent!"
+        else:
+            return f"Erro ao enviar o torrent para o qBittorrent: Código={resp.status_code}, Detalhes={resp.text}"
+            
+    except Exception as e:
+        return f"Falha na operação de download do torrent do Hugging Face: {str(e)}"
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
