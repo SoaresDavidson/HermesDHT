@@ -286,5 +286,71 @@ def baixar_torrent_hf(repo: str) -> str:
     except Exception as e:
         return f"Falha na operação de download do torrent do Hugging Face: {str(e)}"
 
+@mcp.tool()
+def listar_torrents_hf(query: str = "") -> str:
+    """
+    Lista os modelos/datasets do Hugging Face que já possuem arquivos torrent
+    disponíveis no repositório hf-torrent-store.
+
+    Args:
+        query: Opcional. Termo para filtrar a lista de repositórios (ex: 'llama', 'stable').
+    """
+    logger.info(f"Executando listar_torrents_hf com filtro: {query}")
+    try:
+        # Busca a árvore de arquivos recursivamente da API do GitHub
+        url = "https://api.github.com/repos/Lyken17/hf-torrent-store/git/trees/master?recursive=1"
+        headers = {"User-Agent": "HermesDHT-MCP"}
+        resp = requests.get(url, headers=headers, timeout=15)
+        
+        if resp.status_code == 403:
+            return (
+                "Aviso: Limite de requisições à API do GitHub atingido (Rate Limit).\n"
+                "Você pode consultar a lista de torrents disponíveis acessando diretamente: "
+                "https://github.com/Lyken17/hf-torrent-store"
+            )
+            
+        resp.raise_for_status()
+        tree_data = resp.json()
+        
+        # Filtra os caminhos dos arquivos de metadados principais (_all.torrent)
+        repos = []
+        for item in tree_data.get("tree", []):
+            path = item.get("path", "")
+            if path.endswith("/_all.torrent"):
+                repo_name = path[:-13] # Remove "/_all.torrent"
+                repos.append(repo_name)
+                
+        # Remove duplicados e ordena alfabeticamente
+        repos = sorted(list(set(repos)))
+        
+        # Aplica o filtro de busca se houver
+        if query:
+            query_lower = query.lower()
+            repos = [r for r in repos if query_lower in r.lower()]
+            
+        if not repos:
+            if query:
+                return f"Nenhum repositório com torrent ativo encontrado para o filtro '{query}'."
+            return "Nenhum repositório com torrent encontrado."
+            
+        # Formata os resultados como Markdown
+        markdown = f"### Repositórios com Torrent Ativos no hf-torrent-store"
+        if query:
+            markdown += f" (Filtrado por '{query}')"
+        markdown += f":\n\n"
+        
+        # Exibe os primeiros 100 resultados e avisa se houver mais
+        max_display = 100
+        for repo in repos[:max_display]:
+            markdown += f"*   `{repo}`\n"
+            
+        if len(repos) > max_display:
+            markdown += f"\n*... e mais {len(repos) - max_display} repositórios. Seja mais específico na busca!*"
+            
+        return markdown
+        
+    except Exception as e:
+        return f"Erro ao obter lista de torrents do hf-torrent-store: {str(e)}"
+
 if __name__ == "__main__":
     mcp.run(transport="stdio")
