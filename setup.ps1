@@ -25,9 +25,7 @@ TZ=America/Sao_Paulo
 DOWNLOADS_PATH=$MEDIA_ROOT_DOCKER/downloads
 LOG_LEVEL=info
 
-# Configurações do Servidor MCP (Prowlarr & qBittorrent)
-PROWLARR_URL=http://prowlarr:9696
-PROWLARR_API_KEY=
+# Configurações do Servidor MCP (qBittorrent)
 QBITTORRENT_URL=http://qbittorrent:8080
 QBITTORRENT_USER=admin
 "@
@@ -71,49 +69,7 @@ Write-Host "qBittorrent configurado com sucesso."
 Write-Host "Senha gerada e salva: $password"
 Write-Host "API Key gerada e salva: $apiKey"
 
-# 5. Executa a configuração do Prowlarr se a API Key já estiver presente no .env
-$prowlarrApiKey = ""
-if (Test-Path .env) {
-    $envLines = Get-Content .env
-    foreach ($envLine in $envLines) {
-        if ($envLine -match "^PROWLARR_API_KEY=(.+)$") {
-            $prowlarrApiKey = $Matches[1].Trim()
-        }
-    }
-}
-
-if ($prowlarrApiKey -ne "") {
-    Write-Host ""
-    Write-Host "PROWLARR_API_KEY encontrada. Executando configuração do Prowlarr..."
-    
-    $hasUv = $false
-    try {
-        & uv --version | Out-Null
-        $hasUv = $true
-    } catch {}
-
-    if ($hasUv) {
-        & uv run configure_prowlarr.py
-    } else {
-        Write-Host "Instalando dependências e executando com Python padrão..."
-        & $pythonCmd -m pip install requests | Out-Null
-        & $pythonCmd configure_prowlarr.py
-    }
-
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "Prowlarr e indexadores configurados com sucesso! ✅"
-    } else {
-        Write-Host "Aviso: Ocorreu um erro ao rodar configure_prowlarr.py."
-    }
-} else {
-    Write-Host ""
-    Write-Host "Aviso: Prowlarr não pôde ser integrado ainda (PROWLARR_API_KEY vazia)."
-    Write-Host "Para finalizar a integração:"
-    Write-Host "  1. Inicie os containers: docker compose up -d"
-    Write-Host "  2. Obtenha a ApiKey em './prowlarr/config/config.xml'"
-    Write-Host "  3. Insira no seu arquivo .env como PROWLARR_API_KEY=sua_chave"
-    Write-Host "  4. Execute este script de setup novamente (ou rode: uv run configure_prowlarr.py)"
-}
+# 5. Configuração processada. qBittorrent configurado.
 
 Write-Host ""
 Write-Host "Setup processado!"
