@@ -27,12 +27,10 @@ fi
 if python3 configure_qbittorrent.py > temp_qbit.txt; then
   # Extrai informações geradas para exibir no terminal
   PASSWORD=$(grep "PASSWORD:" temp_qbit.txt | cut -d':' -f2)
-  API_KEY=$(grep "API_KEY:" temp_qbit.txt | cut -d':' -f2)
   rm temp_qbit.txt
   
   echo "qBittorrent configurado no host com sucesso."
   echo "Senha gerada e salva: $PASSWORD"
-  echo "API Key gerada e salva: $API_KEY"
 else
   echo "Erro ao rodar configure_qbittorrent.py. Verifique se o Python 3 está instalado."
   rm -f temp_qbit.txt

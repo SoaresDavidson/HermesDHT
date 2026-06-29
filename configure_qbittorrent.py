@@ -28,15 +28,10 @@ def main():
     # 1. Carrega variáveis existentes ou gera novas chaves do qBittorrent
     env = load_env()
     qbit_pass = env.get("QBITTORRENT_PASS")
-    qbit_api_key = env.get("QBITTORRENT_API_KEY")
 
     if not qbit_pass:
         alphabet = string.ascii_letters + string.digits
         qbit_pass = "".join(secrets.choice(alphabet) for _ in range(16))
-        
-    if not qbit_api_key:
-        alphabet = string.ascii_letters + string.digits
-        qbit_api_key = "qbt_" + "".join(secrets.choice(alphabet) for _ in range(28))
 
     # 2. Hashing PBKDF2-HMAC-SHA512 para o qBittorrent.conf
     iterations = 100000
@@ -72,7 +67,6 @@ def main():
     in_legal_notice = False
     updated_keys = {
         "WebUI\\Password_PBKDF2": False,
-        "WebUI\\APIKey": False,
         "WebUI\\AuthSubnetWhitelist": False,
         "WebUI\\AuthSubnetWhitelistEnabled": False,
         "WebUI\\LocalHostAuth": False
@@ -89,8 +83,6 @@ def main():
                     if not updated:
                         if k == "WebUI\\Password_PBKDF2":
                             new_lines.append(f'{k}="{password_pbkdf2}"\n')
-                        elif k == "WebUI\\APIKey":
-                            new_lines.append(f'{k}={qbit_api_key}\n')
                         elif k == "WebUI\\AuthSubnetWhitelist":
                             new_lines.append(f'{k}=172.16.0.0/12\n')
                         elif k == "WebUI\\AuthSubnetWhitelistEnabled":
@@ -115,8 +107,6 @@ def main():
                 if key in updated_keys:
                     if key == "WebUI\\Password_PBKDF2":
                         new_lines.append(f'{key}="{password_pbkdf2}"\n')
-                    elif key == "WebUI\\APIKey":
-                        new_lines.append(f'{key}={qbit_api_key}\n')
                     elif key == "WebUI\\AuthSubnetWhitelist":
                         new_lines.append(f'{key}=172.16.0.0/12\n')
                     elif key == "WebUI\\AuthSubnetWhitelistEnabled":
@@ -143,8 +133,6 @@ def main():
             if not updated:
                 if k == "WebUI\\Password_PBKDF2":
                     new_lines.append(f'{k}="{password_pbkdf2}"\n')
-                elif k == "WebUI\\APIKey":
-                    new_lines.append(f'{k}={qbit_api_key}\n')
                 elif k == "WebUI\\AuthSubnetWhitelist":
                     new_lines.append(f'{k}=172.16.0.0/12\n')
                 elif k == "WebUI\\AuthSubnetWhitelistEnabled":
@@ -161,7 +149,6 @@ def main():
     if not any(k for k in updated_keys.values()):
         new_lines.append("\n[Preferences]\n")
         new_lines.append(f'WebUI\\Password_PBKDF2="{password_pbkdf2}"\n')
-        new_lines.append(f'WebUI\\APIKey={qbit_api_key}\n')
         new_lines.append('WebUI\\AuthSubnetWhitelist=172.16.0.0/12\n')
         new_lines.append('WebUI\\AuthSubnetWhitelistEnabled=true\n')
         new_lines.append('WebUI\\LocalHostAuth=false\n')
@@ -180,8 +167,7 @@ def main():
 
     new_env_lines = []
     updated_env = {
-        "QBITTORRENT_PASS": False,
-        "QBITTORRENT_API_KEY": False
+        "QBITTORRENT_PASS": False
     }
 
     for line in env_lines:
@@ -192,22 +178,19 @@ def main():
             if key in updated_env:
                 if key == "QBITTORRENT_PASS":
                     new_env_lines.append(f"QBITTORRENT_PASS={qbit_pass}\n")
-                elif key == "QBITTORRENT_API_KEY":
-                    new_env_lines.append(f"QBITTORRENT_API_KEY={qbit_api_key}\n")
                 updated_env[key] = True
                 continue
         new_env_lines.append(line)
 
     for k, updated in updated_env.items():
         if not updated:
-            new_env_lines.append(f"{k}={qbit_pass if k == 'QBITTORRENT_PASS' else qbit_api_key}\n")
+            new_env_lines.append(f"{k}={qbit_pass}\n")
 
     with open(".env", "w") as f:
         f.writelines(new_env_lines)
 
     # Output para leitura dos scripts shell
     print(f"PASSWORD:{qbit_pass}")
-    print(f"API_KEY:{qbit_api_key}")
 
 if __name__ == "__main__":
     main()

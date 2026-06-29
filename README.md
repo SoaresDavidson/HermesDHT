@@ -36,4 +36,8 @@ O `mcp_server/` expõe ferramentas para o Claude interagir com a stack e com o H
 | `pausar_download` | Pausa torrent por hash |
 | `deletar_download` | Remove torrent (opcionalmente com dados) |
 
-Configure via variáveis de ambiente (veja `.env`) ou rode localmente com `uv run mcp_server/server.py`.
+Configure via variáveis de ambiente (veja `.env`) e execute com o Docker:
+```bash
+docker run -i --rm --network hermesdht_internal-proxy --env-file /home/davi/Projetos/HermesDHT/.env mcp-qbittorrent-hf
+```
+Ou rode localmente com `uv run mcp_server/server.py`.

@@ -54,20 +54,15 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 $password = ""
-$apiKey = ""
 
 foreach ($line in $results) {
     if ($line -match "^PASSWORD:(.*)$") {
         $password = $Matches[1]
     }
-    if ($line -match "^API_KEY:(.*)$") {
-        $apiKey = $Matches[1]
-    }
 }
 
 Write-Host "qBittorrent configurado com sucesso."
 Write-Host "Senha gerada e salva: $password"
-Write-Host "API Key gerada e salva: $apiKey"
 
 # 5. Configuração processada. qBittorrent configurado.
 
