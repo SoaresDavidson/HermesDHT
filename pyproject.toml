@@ -5,7 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "hf-torrent>=0.0.1.post2401021918",
     "httpx>=0.28.1",
+    "huggingface-hub>=1.21.0",
     "mcp>=1.28.1",
     "requests>=2.34.2",
 ]
