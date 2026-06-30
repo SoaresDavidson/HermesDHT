@@ -238,7 +238,11 @@ def pausar_download(hash: str) -> str:
     """
     logger.info(f"Executando pausar_download para o hash: {hash}")
     try:
-        resp = qbit.request("POST", "/api/v2/torrents/pause", data={"hashes": hash})
+        # qBittorrent v5.x renomeou /pause → /stop; tenta novo endpoint primeiro
+        resp = qbit.request("POST", "/api/v2/torrents/stop", data={"hashes": hash})
+        if resp.status_code == 404:
+            # fallback para versões < 5.x
+            resp = qbit.request("POST", "/api/v2/torrents/pause", data={"hashes": hash})
         if resp.status_code == 200:
             return f"Sucesso: O torrent `{hash}` foi pausado."
         else:

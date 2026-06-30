@@ -75,7 +75,9 @@ def main():
         "WebUI\\APIKey": False,
         "WebUI\\AuthSubnetWhitelist": False,
         "WebUI\\AuthSubnetWhitelistEnabled": False,
-        "WebUI\\LocalHostAuth": False
+        "WebUI\\LocalHostAuth": False,
+        "WebUI\\CSRFProtection": False,
+        "WebUI\\HostHeaderValidation": False
     }
     updated_legal = {
         "Accepted": False
@@ -96,6 +98,10 @@ def main():
                         elif k == "WebUI\\AuthSubnetWhitelistEnabled":
                             new_lines.append(f'{k}=true\n')
                         elif k == "WebUI\\LocalHostAuth":
+                            new_lines.append(f'{k}=false\n')
+                        elif k == "WebUI\\CSRFProtection":
+                            new_lines.append(f'{k}=false\n')
+                        elif k == "WebUI\\HostHeaderValidation":
                             new_lines.append(f'{k}=false\n')
                         updated_keys[k] = True
             if in_legal_notice:
@@ -122,6 +128,10 @@ def main():
                     elif key == "WebUI\\AuthSubnetWhitelistEnabled":
                         new_lines.append(f'{key}=true\n')
                     elif key == "WebUI\\LocalHostAuth":
+                        new_lines.append(f'{key}=false\n')
+                    elif key == "WebUI\\CSRFProtection":
+                        new_lines.append(f'{key}=false\n')
+                    elif key == "WebUI\\HostHeaderValidation":
                         new_lines.append(f'{key}=false\n')
                     updated_keys[key] = True
                     continue
@@ -151,6 +161,10 @@ def main():
                     new_lines.append(f'{k}=true\n')
                 elif k == "WebUI\\LocalHostAuth":
                     new_lines.append(f'{k}=false\n')
+                elif k == "WebUI\\CSRFProtection":
+                    new_lines.append(f'{k}=false\n')
+                elif k == "WebUI\\HostHeaderValidation":
+                    new_lines.append(f'{k}=false\n')
                 updated_keys[k] = True
     if in_legal_notice:
         if not updated_legal["Accepted"]:
@@ -165,6 +179,8 @@ def main():
         new_lines.append('WebUI\\AuthSubnetWhitelist=172.16.0.0/12\n')
         new_lines.append('WebUI\\AuthSubnetWhitelistEnabled=true\n')
         new_lines.append('WebUI\\LocalHostAuth=false\n')
+        new_lines.append('WebUI\\CSRFProtection=false\n')
+        new_lines.append('WebUI\\HostHeaderValidation=false\n')
     if not updated_legal["Accepted"]:
         new_lines.append("\n[LegalNotice]\n")
         new_lines.append("Accepted=true\n")
