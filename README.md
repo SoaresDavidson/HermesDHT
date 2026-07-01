@@ -38,4 +38,13 @@ O `mcp_server/` expõe ferramentas para o Claude interagir com a stack:
 | `pausar_download` | Pausa torrent por hash |
 | `deletar_download` | Remove torrent (opcionalmente com dados) |
 
-Configure via variáveis de ambiente (veja `.env`) ou rode localmente com `uv run mcp_server/server.py`.
+Configure via variáveis de ambiente (veja `.env`). Para o **Cursor**, a configuração MCP já está em [`.cursor/mcp.json`](.cursor/mcp.json) — rode `./setup.sh` antes e reinicie o editor.
+
+```bash
+docker run -i --rm \
+  --network hermesdht_internal-proxy \
+  --env-file ${HOME}/Projetos/HermesDHT/.env \
+  mcp-prowlarr-qbit
+```
+
+Alternativa local: `uv run mcp_server/server.py`.

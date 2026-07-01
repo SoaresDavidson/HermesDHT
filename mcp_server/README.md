@@ -29,7 +29,22 @@ O servidor expõe as seguintes ferramentas para o cliente de IA:
 
 ## 🚀 Como Executar
 
-### Opção 1: Rodar diretamente com o `uv` (Recomendado)
+### Opção 1: Rodar via Docker (Recomendado para Cursor)
+
+Após o `./setup.sh` (que builda a imagem `mcp-prowlarr-qbit`), execute o servidor conectado à rede interna da stack:
+
+```bash
+docker run -i --rm \
+  --network hermesdht_internal-proxy \
+  --env-file ${HOME}/Projetos/HermesDHT/.env \
+  mcp-prowlarr-qbit
+```
+
+> A rede `hermesdht_internal-proxy` é criada automaticamente pelo `docker compose up`. As variáveis do `.env` apontam para os serviços internos (`prowlarr`, `qbittorrent`).
+
+---
+
+### Opção 2: Rodar diretamente com o `uv`
 
 O script utiliza metadados da PEP 723, o que significa que o `uv` cuidará de todas as dependências automaticamente em um ambiente isolado.
 
@@ -50,6 +65,26 @@ uv run server.py
 ---
 
 ## 💻 Integração com Editores e Clientes
+
+### Cursor
+
+O projeto inclui a configuração MCP em [`.cursor/mcp.json`](../.cursor/mcp.json). Após rodar o `./setup.sh`, reinicie o Cursor para carregar o servidor `prowlarr-qbit`.
+
+```json
+{
+  "mcpServers": {
+    "prowlarr-qbit": {
+      "command": "bash",
+      "args": [
+        "-c",
+        "docker run -i --rm --network hermesdht_internal-proxy --env-file ${HOME}/Projetos/HermesDHT/.env mcp-prowlarr-qbit"
+      ]
+    }
+  }
+}
+```
+
+---
 
 ### Claude Desktop
 
